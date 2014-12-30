@@ -842,8 +842,20 @@ class Pages:
             if error: return True # don't advance page
         self.page_set_state('s_motor',self.a.has_spindle_speed_control())
 
+    # mesa page signals for callbacks must be built manually (look in pncconf.py init_mesa_signals() )
+    # This is because the page in not inialized/loaded until needed
+    # callbacks:
     def on_mesapanel_clicked(self, *args):
         self.t.launch_mesa_panel()
+
+    def on_mesa0_discovery_clicked(self, *args):
+        board = self.w.mesa0_boardtitle.get_active_text()
+        if '7i43' in board:
+            info = self.a.discover_system('7i43 --epp')
+        else:
+            info = self.a.discover_system()
+        if not info =='':
+            self.a.parse_discovery(info)
 
 #************
 # MESA1 PAGE
@@ -882,6 +894,12 @@ class Pages:
         error = self.a.signal_sanity_check()
         if error: return True
         self.page_set_state('s_motor',self.a.has_spindle_speed_control())
+
+    # mesa page signals for callbacks must be built manually (look in pncconf.py init_mesa_signals() )
+    # This is because the page in not inialized/loaded until needed
+    # callbacks:
+    def on_mesa1_discovery_clicked(self, *args):
+        self.a.discover_system()
 
 #************
 # pport1 PAGE

@@ -772,6 +772,7 @@ class Data:
         self.snearrange = 200.0
         self.snearscale = 1.20
         self.sfiltergain = 1.0
+        self.scaleselect = False
         self.suseatspeed = False
         self.suseoutputrange2 = False
         self.scaleselect = False
@@ -2083,6 +2084,76 @@ PNCconf will use internal firmware data"%self._p.FIRMDIR),True)
             self._p.MESA_FIRMWAREDATA.append(temp)
         self.window.hide()
 
+    def discover_system(self,devicename='5i25'):
+        cmd ="""gksudo "sh -c 'mesaflash --device %s';'mesaflash --device %s --readhmid';'mesaflash --device %s --sserial' " """%(devicename,devicename,devicename)
+        discover = subprocess.Popen([cmd], shell=True,stdin=subprocess.PIPE,stdout=subprocess.PIPE )
+        output = discover.communicate()[0]
+        textbuffer = self.widgets.textoutput.get_buffer()
+        try :         
+            textbuffer.set_text(output)
+            self.widgets.helpnotebook.set_current_page(2)
+            self.widgets.help_window.show_all()
+        except:
+            text = _("Discovery is  unavailable\n")
+            self.warning_dialog(text,True)
+        return output
+
+    def parse_discovery(self,info):
+        WATCHDOG = NUMCONS = NUMCONPINS = ENCODERS = MUXENCODERS = RESOLVERS = NUMSSCHANNELS = SSERIALPORTS = 0
+        PWMGENS = LEDS = STEPGENS = TPPWMGEN = 0
+        NUMENCODERPINS = NUMPWMPINS = 3; NUMSTEPPERPINS = 2; NUMTPPWMPINS = 0;NUMRESOLVERPINS = 10
+        info = info.upper()
+        lines = info.splitlines()
+        sserial=[]
+        for l_num,i in enumerate(lines):
+            i = i.lstrip()
+            temp2 = i.split(" ")
+            if 'DEVICE AT' in i:
+                for num,i in enumerate(temp2):
+                    if i =="CHANNEL":
+                        sserial.append((temp2[num+1],temp2[num+2]))
+            if 'SSLBP CHANNELS:' in i:
+                NUMSSCHANNELS = temp2[2]
+            if 'NUMBER OF IO PORTS:' in i:
+                NUMCONS = temp2[4]
+            if 'WIDTH OF ONE I/O PORT:' in i:
+                NUMCONPINS = temp2[5]
+            if 'MODULE: QCOUNT' in i:
+                tline = lines[l_num+1].split(" ")
+                ENCODERS = tline[4].lstrip()
+            if 'MODULE: MUXEDQCOUNTSEL' in i:
+                continue
+            if 'MODULE: MUXEDQCOUNT' in i:
+                tline = lines[l_num+1].split(" ")
+                MUXENCODERS = tline[4].lstrip()
+            if 'MODULE: SSERIAL' in i:
+                tline = lines[l_num+1].split(" ")
+                SSERIALPORTS = tline[4].lstrip()
+            if 'MODULE: RESOLVERMOD' in i:
+                tline = lines[l_num+1].split(" ")
+                RESOLVER = tline[4].lstrip()
+            if 'MODULE: PWMGEN' in i:
+                tline = lines[l_num+1].split(" ")
+                PWMGENS = tline[4].lstrip()
+            if 'MODULE: LED' in i:
+                tline = lines[l_num+1].split(" ")
+                LEDS = tline[4].lstrip()
+            if 'IO CONNECTIONS FOR' in i:
+                print temp2[3]
+                for num in range(l_num+3,l_num+3+int(NUMCONPINS)):
+                    CHAN = PINFNCTN = ''
+                    pin_line = ' '.join(lines[num].split()).split()
+                    IO = pin_line[1]
+                    SECFNCTN = pin_line[3]
+                    if not SECFNCTN == 'NONE':
+                        CHAN = pin_line[4]
+                        PINFNCTN = pin_line[5]
+                    
+                    print '    I/O ',IO, ' function ',SECFNCTN,' CHANNEL:',CHAN,'PINFUNCTION:',PINFNCTN
+        print 'Sserial CARDS FOUND:',sserial
+        print NUMCONS,NUMCONPINS,ENCODERS,MUXENCODERS,SSERIALPORTS,NUMSSCHANNELS
+        print RESOLVERS,PWMGENS,LEDS
+
     def add_device_rule(self):
         text = []
         sourcefile = "/tmp/"
@@ -2445,6 +2516,9 @@ Clicking 'existing custom program' will aviod this warning. "),False):
         # TODO we should check to see if signals are already present as each time user goes though this page
         # the signals get added again causing multple calls to the functions.
     def init_mesa_signals(self,boardnum):
+        cb = "mesa%d_discovery"% (boardnum)
+        i = "_mesa%dsignalhandler_discovery"% (boardnum)
+        self.d[i] = int(self.widgets[cb].connect("clicked", self.p['on_mesa%d_discovery_clicked'%boardnum]))
         cb = "mesa%d_comp_update"% (boardnum)
         i = "_mesa%dsignalhandler_comp_update"% (boardnum)
         self.d[i] = int(self.widgets[cb].connect("clicked", self.on_mesa_component_value_changed,boardnum))

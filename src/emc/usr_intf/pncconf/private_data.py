@@ -33,7 +33,8 @@ class Private_Data:
         # This holds page information:
         # [widget name,title.initialized state,active state]
         # The widget name is also the filename 'widget.glade'
-        # if not initialized, the page will be loaded and added, only if page is shown (and signals selected in glade editor will be ignored)
+        # if not initialized, the page will be loaded and added,
+        # only if page is shown (and signals selected in glade editor will be ignored)
         self.available_page =[['intro', _('PNCconf'),True,True],
                                 ['start',_('Start'),True,True],
                                 ['base',_('Base Information'),True,True],
