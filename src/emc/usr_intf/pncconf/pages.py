@@ -855,7 +855,19 @@ class Pages:
         else:
             info = self.a.discover_system()
         if not info =='':
-            self.a.parse_discovery(info)
+            firmname, path = self.a.parse_discovery(info,boardnum=0)
+            firmdata = self.a.parse_xml( board,firmname,path)
+            self._p.MESA_FIRMWAREDATA.append(firmdata)
+            self._p.MESA_INTERNAL_FIRMWAREDATA.append(firmdata)
+            # add firmname t0 combo box if it's not there
+            model = self.w.mesa0_firmware.get_model()
+            flag = True
+            for search,item in enumerate(model):
+                if model[search][0]  == firmname:
+                    flag = False
+                    break
+            if flag:
+                model.append((firmname,))
 
 #************
 # MESA1 PAGE
@@ -900,6 +912,16 @@ class Pages:
     # callbacks:
     def on_mesa1_discovery_clicked(self, *args):
         self.a.discover_system()
+
+    def on_mesa1_discovery_clicked(self, *args):
+        board = self.w.mesa1_boardtitle.get_active_text()
+        if '7i43' in board:
+            info = self.a.discover_system('7i43 --epp')
+        else:
+            info = self.a.discover_system()
+        if not info =='':
+            firmname, path = self.a.parse_discovery(info,boardnum=1)
+            self.a.parse_xml(board,firmname,path)
 
 #************
 # pport1 PAGE
