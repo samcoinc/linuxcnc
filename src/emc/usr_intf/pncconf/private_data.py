@@ -469,7 +469,8 @@ class Private_Data:
             S.I7I70_T, S.I7I70_R, S.I7I70_E, S.I7I71_T, S.I7I71_R, S.I7I71_E, 
             S.I7I76_M0_T, S.I7I76_M0_R, S.I7I76_M0_E, S.I7I76_M2_T, S.I7I76_M2_R, S.I7I76_M2_E,
             S.I7I77_M0_T, S.I7I77_M0_R, S.I7I77_M0_E, S.I7I77_M3_T, S.I7I77_M3_R, S.I7I77_M3_E,
-            S.I7I73_M0_T, S.I7I73_M0_R, S.I7I73_M0_E
+            S.I7I73_M0_T, S.I7I73_M0_R, S.I7I73_M0_E, S.I7I84_M0_T, S.I7I84_M0_R, S.I7I84_M0_E,
+            S.I7I84_M3_T, S.I7I84_M3_R, S.I7I84_M3_E,
         ) = self.hal_sserial_names = [
             "unused-sserial","8i20-t","8i20-r","8i20-e",
             "7i64-t","7i64-r","7i64-e","7i69-t","7i69-r","7i69-e",
@@ -483,7 +484,8 @@ class Private_Data:
             [ _("7i70 I/O Card"),[]],[ _("7i71 I/O Card"),[]],
             [ _("7i76 Mode 0 I/O Card"),[]],[ _("7i76 Mode 2 I/O Card"),[]],
             [ _("7i77 Mode 0 I/O Card"),[]],[ _("7i77 Mode 3 I/O Card"),[]],
-            [ _("7i73 Mode 1 Pendant Card"),[]] ]
+            [ _("7i73 Mode 1 Pendant Card"),[]],
+            [ _("7i84 Mode 1 I/O Card"),[]],[ _("7i84 Mode 3 I/O Card"),[]], ]
 
         (S.UNUSED_ANALOG_IN) = self.hal_analog_input_names = ["unused-analog-input"]
         self.human_analog_input_names = [ [_("Unused Analog In"),[]],[_("Custom Signals"),[]] ]
