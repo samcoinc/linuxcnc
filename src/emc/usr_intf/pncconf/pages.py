@@ -868,7 +868,13 @@ class Pages:
                     break
             if flag:
                 model.append((firmname,))
-
+                search = 0
+                model = self.w["mesa0_firmware"].get_model()
+                for search,item in enumerate(model):
+                    if model[search][0]  == firmname:
+                        self.w["mesa0_firmware"].set_active(search)
+                        self.a.on_mesa_component_value_changed(None,0)
+                        break
 #************
 # MESA1 PAGE
 #************

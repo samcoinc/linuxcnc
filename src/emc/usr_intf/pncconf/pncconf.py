@@ -2164,7 +2164,8 @@ PNCconf will use internal firmware data"%self._p.FIRMDIR),True)
             return temp
 
     def discover_system(self,devicename='5i25'):
-        if '7i43' in devicename:
+        print devicename
+        if '7i43' in devicename.lower():
             devicename = '7i43 --epp'
 
             halrun = os.popen("halrun -Is > /dev/null", "w")
