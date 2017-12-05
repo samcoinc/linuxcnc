@@ -26,6 +26,10 @@
 extern "C" {
 #endif
 
+// planner methods
+#define SIMPLE_TP_METHOD 0x0
+#define LIMIT3_TP_METHOD    0x1
+
     typedef struct simple_tp_t {
 	double pos_cmd;		/* position command */
 	double max_vel;		/* velocity limit */
@@ -34,6 +38,12 @@ extern "C" {
 	double curr_pos;	/* current position */
 	double curr_vel;	/* current velocity */
 	int active;		/* non-zero if motion in progress */
+    double in_pos_old;      /* limit3 method */
+    double out_old;         /* limit3 method */
+    double out_vel;         /* limit3 method */
+    double min_pos;         /* limit3 method */
+    double max_pos;         /* limit3 method */
+    int smooth_steps_value; /* limit3 method */
     } simple_tp_t;
 
 /* I could write a bunch of functions to read and write the first four
@@ -52,6 +62,7 @@ extern "C" {
 */
 
 extern void simple_tp_update(simple_tp_t *tp, double period);
+extern void limit3_planner_update(simple_tp_t *tp, double period);
 
 
 #ifdef __cplusplus
