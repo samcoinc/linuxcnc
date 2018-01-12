@@ -328,7 +328,7 @@ static int init_hal_io(void)
 
     /* simple_tp_planner selector -- for testing */
     if ((retval = hal_pin_u32_newf(HAL_IN, &(emcmot_hal_data->simple_tp_method), mot_comp_id, "motion.simple-tp-method")) != 0) goto error;
-    *(emcmot_hal_data->simple_tp_method) = SIMPLE_TP_METHOD;
+    *(emcmot_hal_data->simple_tp_method) = LIMIT3_TP_METHOD;  // temp for test
 
     // spindle orient pins
     if ((retval = hal_pin_float_newf(HAL_OUT, &(emcmot_hal_data->spindle_orient_angle), mot_comp_id, "motion.spindle-orient-angle")) < 0) goto error;
