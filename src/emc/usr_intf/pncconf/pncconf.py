@@ -2165,6 +2165,7 @@ PNCconf will use internal firmware data"%self._p.FIRMDIR),True)
 
     def discover_system(self,devicename='5i25'):
         print devicename
+        # 7i43 needs it's firmware loaded before it can be 'discovered'
         if '7i43' in devicename.lower():
             devicename = '7i43 --epp'
 

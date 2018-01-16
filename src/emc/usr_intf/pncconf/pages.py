@@ -850,11 +850,18 @@ class Pages:
 
     def on_mesa0_discovery_clicked(self, *args):
         board = self.w.mesa0_boardtitle.get_active_text()
+        print 'try to discover board:',board
         if '7i43' in board:
             info = self.a.discover_system('7i43 --epp')
         else:
             info = self.a.discover_system()
-        if not info =='':
+        print 'INFO:',info
+        lines = info.splitlines()
+        if 'No' in lines[0] and 'board found' in lines[0] :
+            text = _("No board was found\n")
+            self.a.warning_dialog(text,True)
+            print 'OOPS no board found!'
+        elif not info =='':
             firmname, path = self.a.parse_discovery(info,boardnum=0)
             firmdata = self.a.parse_xml( board,firmname,path)
             self._p.MESA_FIRMWAREDATA.append(firmdata)
@@ -916,8 +923,6 @@ class Pages:
     # mesa page signals for callbacks must be built manually (look in pncconf.py init_mesa_signals() )
     # This is because the page in not inialized/loaded until needed
     # callbacks:
-    def on_mesa1_discovery_clicked(self, *args):
-        self.a.discover_system()
 
     def on_mesa1_discovery_clicked(self, *args):
         board = self.w.mesa1_boardtitle.get_active_text()
