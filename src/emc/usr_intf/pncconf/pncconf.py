@@ -1591,7 +1591,28 @@ class App:
             return False
         else:
             return True
-    
+
+    def query_dialog(self,title, message):
+        label = gtk.Label(message)
+        #label.modify_font(pango.FontDescription("sans 20"))
+        entry = gtk.Entry()
+        dialog = gtk.MessageDialog(self.widgets.window1,
+                gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                gtk.MESSAGE_WARNING, gtk.BUTTONS_OK, title)
+
+        dialog.vbox.pack_start(label)
+        dialog.vbox.add(entry)
+
+        dialog.show_all()
+        result = dialog.run()
+
+        text = entry.get_text()
+        dialog.destroy()
+        if result:
+            return text
+        else:
+            return None
+
     def warning_dialog(self,message,is_ok_type):
         if is_ok_type:
            dialog = gtk.MessageDialog(self.widgets.window1,
@@ -2164,7 +2185,7 @@ PNCconf will use internal firmware data"%self._p.FIRMDIR),True)
             return temp
 
     def discover_system(self,devicename='5i25'):
-        print devicename
+        print 'DEVICE NAME SPECIFIED',devicename
         # 7i43 needs it's firmware loaded before it can be 'discovered'
         if '7i43' in devicename.lower():
             devicename = '7i43 --epp'

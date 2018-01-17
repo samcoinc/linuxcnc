@@ -850,11 +850,14 @@ class Pages:
 
     def on_mesa0_discovery_clicked(self, *args):
         board = self.w.mesa0_boardtitle.get_active_text()
-        print 'try to discover board:',board
+        name = self.a.query_dialog('Discovery Search','Specify device name')
+        print 'try to discover board:',name
+        if not name:
+            name = '5i25'
         if '7i43' in board:
             info = self.a.discover_system('7i43 --epp')
         else:
-            info = self.a.discover_system()
+            info = self.a.discover_system(name)
         print 'INFO:',info
         lines = info.splitlines()
         if 'No' in lines[0] and 'board found' in lines[0] :
