@@ -36,6 +36,9 @@
 #include <readline/history.h>
 #include <glob.h>
 #include <wordexp.h>
+#include <rtapi_string.h>
+
+#include <saicanon.hh>
 
 InterpBase *pinterp;
 #define interp_new (*pinterp)
@@ -334,7 +337,7 @@ int read_tool_file(  /* ARGUMENTS         */
       tool_file_name = buffer;
     }
 
-  return loadToolTable(tool_file_name, _tools, 0, 0, 0);
+  return loadToolTable(tool_file_name, _sai._tools, 0, 0);
 }
 
 /************************************************************************/
@@ -548,11 +551,14 @@ int main (int argc, char ** argv)
   int log_level = -1;
   std::string interp;
 
+  setvbuf(stdout, NULL, _IONBF, 0);
+  setvbuf(stderr, NULL, _IONBF, 0);
+
   do_next = 2;  /* 2=stop */
   block_delete = OFF;
   print_stack = OFF;
   tool_flag = 0;
-  strcpy(_parameter_file_name, default_name);
+  SET_PARAMETER_FILE_NAME(default_name);
   _outfile = stdout; /* may be reset below */
   go_flag = 0;
 
@@ -563,7 +569,7 @@ int main (int argc, char ** argv)
       switch(c) {
           case 'p': interp = optarg; break;
           case 't': read_tool_file(optarg); tool_flag=1; break;
-          case 'v': strcpy(_parameter_file_name, optarg); break;
+          case 'v': SET_PARAMETER_FILE_NAME(optarg); break;
           case 'b': block_delete = (block_delete == OFF) ? ON : OFF; break;
           case 's': print_stack = (print_stack == OFF) ? ON : OFF; break;
           case 'n': do_next = atoi(optarg); break;

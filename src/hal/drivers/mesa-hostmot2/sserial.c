@@ -808,6 +808,14 @@ int hm2_sserial_parse_md(hostmot2_t *hm2, int md_index){
                 HM2_ERR("Remote setup failure on instance %i\n",
                         inst->device_id);
                 goto fail0;}
+            // Nothing happens without a "Do It" command
+            if ((r = hm2_register_tram_write_region(hm2,inst->command_reg_addr,
+                                       sizeof(rtapi_u32),
+                                       &inst->command_reg_write)) < 0){
+                HM2_ERR("error registering tram DoIt write to sserial "
+                "command register (%d)\n", i);
+                goto fail0;}
+
             if ((r = hm2_sserial_stopstart(hm2, md, inst, 0x900)) < 0 ){
                 HM2_ERR("Failed to restart device %i on instance\n",
                         inst->device_id);
@@ -951,7 +959,7 @@ int hm2_sserial_setup_channel(hostmot2_t *hm2, hm2_sserial_instance_t *inst, int
                                       sizeof(rtapi_u32),
                                       &inst->command_reg_read);
     if (r < 0) {
-        HM2_ERR("error registering tram write region for sserial"
+        HM2_ERR("error registering tram read region for sserial"
                 "command register (%d)\n", index);
         return -EINVAL;
     }
@@ -960,17 +968,7 @@ int hm2_sserial_setup_channel(hostmot2_t *hm2, hm2_sserial_instance_t *inst, int
                                       sizeof(rtapi_u32),
                                       &inst->data_reg_read);
     if (r < 0) {
-        HM2_ERR("error registering tram write region for sserial "
-                "command register (%d)\n", index);
-        return -EINVAL;
-
-    }
-    // Nothing happens without a "Do It" command
-    r = hm2_register_tram_write_region(hm2, inst->command_reg_addr,
-                                       sizeof(rtapi_u32),
-                                       &inst->command_reg_write);
-    if (r < 0) {
-        HM2_ERR("error registering tram write region for sserial "
+        HM2_ERR("error registering tram read region for sserial "
                 "command register (%d)\n", index);
         return -EINVAL;
 
@@ -1107,6 +1105,10 @@ int hm2_sserial_read_configs(hostmot2_t *hm2,  hm2_sserial_remote_t *chan){
                 chan->confs[c].ParmMin = 0;
                 chan->confs[c].ParmMax = 1;
             }
+
+            // SmartSerial knows nothing of graycode or wrapless, used only by abs_encoder
+            chan->confs[c].Flags = 0;
+
             HM2_DBG("Process: %s  RecordType: %02X Datatype: %02X Dir: %02X Addr: %04X Length: %i\n",
                            chan->confs[c].NameString, chan->confs[c].RecordType,chan->confs[c].DataType, chan->confs[c].DataDir, chan->confs[c].ParmAddr, chan->confs[c].DataLength);
         } else if (rectype == LBP_MODE ) {
@@ -1600,7 +1602,7 @@ fail1:
                                 case 64:
                                     shift = 0;
                                 }
-                            if (abs((p->s64_param - p->s64_written) >> shift) > 2) break;
+                            if (abs(((int)(p->s64_param) - (int)(p->s64_written)) >> shift) > 2) break;
                             *inst->state2 = 2; // increment indices
                             return *inst->state2;
                         default:
@@ -1774,7 +1776,7 @@ void hm2_sserial_write_pins(hostmot2_t *hm2, hm2_sserial_instance_t *inst){
     int b, p, r;
     int bitcount;
     rtapi_u64 buff;
-    float val;
+    double val;
 
     // the side effect of reporting this error will suffice
     (void)hm2_sserial_check_remote_errors(hm2, inst);
@@ -1832,6 +1834,10 @@ void hm2_sserial_write_pins(hostmot2_t *hm2, hm2_sserial_instance_t *inst){
     // All seems well, handle the pins.
     for (r = 0 ; r < inst->num_remotes ; r++ ) {
         hm2_sserial_remote_t *chan = &inst->remotes[r];
+
+        // Only update this channel's pins if no transfer error
+        if (*inst->data_reg_read & (1 << chan->index)) continue;
+
         bitcount = 0;
         if (chan->reg_0_write) *chan->reg_0_write = 0;
         if (chan->reg_1_write) *chan->reg_1_write = 0;
@@ -1893,7 +1899,7 @@ void hm2_sserial_write_pins(hostmot2_t *hm2, hm2_sserial_instance_t *inst){
                         }
                         break;
                     default:
-                        HM2_ERR("Unsupported output datatype %i (name: ""%s"")\n",
+                        HM2_ERR("Unsupported output datatype 0x%02X (name: ""%s"")\n",
                                 conf->DataType, conf->NameString);
                         conf->DataType = 0; // Warn once, then ignore
                 }
@@ -2123,7 +2129,7 @@ int hm2_sserial_read_pins(hm2_sserial_remote_t *chan){
                 break;
             }
             default:
-                HM2_ERR_NO_LL("Unsupported input datatype %02X (name: ""%s"")\n",
+                HM2_ERR_NO_LL("Unsupported input datatype 0x%02X (name: ""%s"")\n",
                         conf->DataType, conf->NameString);
 
                 conf->DataType = 0; // Only warn once, then ignore
@@ -2150,9 +2156,9 @@ void hm2_sserial_process_tram_read(hostmot2_t *hm2, long period){
 
 void hm2_sserial_print_module(hostmot2_t *hm2) {
     int i,r,c,g,m;
+    if (hm2->sserial.num_instances <= 0) return;
     HM2_PRINT("SSerial: %d\n", hm2->sserial.num_instances);
     HM2_PRINT("  version %d\n", hm2->sserial.version);
-    if (hm2->sserial.num_instances <= 0) return;
     for (i = 0; i < hm2->sserial.num_instances; i ++) {
         HM2_PRINT("    instance %d:\n", i);
         HM2_PRINT("        Command Addr 0x%04x\n", hm2->sserial.instance[i].command_reg_addr);
@@ -2291,7 +2297,7 @@ int hm2_sserial_check_remote_errors(hostmot2_t *hm2, hm2_sserial_instance_t *ins
         if((chan->status & 0x100) == 0) return 0;
         buff = chan->status & ~chan->seen_remote_errors & err_mask;
         chan->seen_remote_errors |= chan->status;
-        for (i = 31 ; i >= 0 ; i--){
+        for (i = 31 ; i >= 23 ; i--){
             if (buff & (1 << i) && err_list[i]) {
                 HM2_ERR("Smart serial card %s remote error = (%i) %s\n",
                         chan->name, i, err_list[i]);

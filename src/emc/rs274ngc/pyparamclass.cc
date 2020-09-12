@@ -18,7 +18,7 @@
 // Interpreter internals - Python bindings
 // Michael Haberler 7/2011
 //
-
+#include "py3c/py3c.h"
 #define BOOST_PYTHON_MAX_ARITY 4
 #include <boost/python/extract.hpp>
 #include <boost/python/suite/indexing/map_indexing_suite.hpp>
@@ -37,8 +37,11 @@ extern int _task;  // zero in gcodemodule, 1 in milltask
 #include "rs274ngc_interp.hh"
 #include "paramclass.hh"
 
-#define IS_STRING(x) (PyObject_IsInstance(x.ptr(), (PyObject*)&PyString_Type))
-#define IS_INT(x) (PyObject_IsInstance(x.ptr(), (PyObject*)&PyInt_Type))
+#include <interp_parameter_def.hh>
+using namespace interp_param_global;
+
+#define IS_STRING(x) (PyStr_Check(x.ptr()))
+#define IS_INT(x) (PyInt_Check(x.ptr()))
 
 // access to named and numbered parameters via a pseudo-dictionary
 // either params["paramname"] or params[5400] is valid
@@ -78,11 +81,11 @@ double ParamClass::setitem(bp::object sub, double dvalue)
     } else
 	if (IS_INT(sub)) {
 	    int index = bp::extract < int > (sub);
-	    if ((index < 0) || (index > RS274NGC_MAX_PARAMETERS -1)) {
+        if ((index < 0) || (index > RS274NGC_MAX_PARAMETERS -1)) {
 		std::stringstream sstr;
 		sstr << "params subscript out of range : "
 		     << index << " - must be between 0 and "
-		     << RS274NGC_MAX_PARAMETERS;
+             << RS274NGC_MAX_PARAMETERS;
 		throw std::runtime_error(sstr.str());
 	    }
 	    interp._setup.parameters[index] = dvalue;

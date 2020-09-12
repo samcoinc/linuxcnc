@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <set>
 
 #define BOOST_PYTHON_MAX_ARITY 4
 #include <boost/python/exec.hpp>
@@ -35,8 +36,12 @@ namespace bp = boost::python;
 #define ERRMSG(fmt, args...)					\
     do {							\
         char msgbuf[MAX_ERRMSG_SIZE];				\
-        snprintf(msgbuf, sizeof(msgbuf) -1,  fmt, ##args);	\
-        error_msg = std::string(msgbuf);			\
+        size_t ret = snprintf(msgbuf, sizeof(msgbuf) -1,  fmt, ##args); \
+        if (ret >= sizeof(msgbuf)){                                      \
+            snprintf(msgbuf, sizeof(msgbuf), "Error message too long"); \
+        } else {                                                        \
+            error_msg = std::string(msgbuf);                            \
+        }                                                               \
     } while(0)
 
 #define logPP(level, fmt, ...)						\
@@ -48,8 +53,7 @@ namespace bp = boost::python;
 	}								\
     } while (0)
 
-
-extern const char *strstore(const char *s);
+static const char *strstore(const char *s);
 
 // boost python versions from 1.58 to 1.61 (the latest at the time of
 // writing) all have a bug in boost::python::execfile that results in a
@@ -57,7 +61,11 @@ extern const char *strstore(const char *s);
 // execfile instead.
 // The bug was introduced at https://github.com/boostorg/python/commit/fe24ab9dd5440562e27422cd38f7de03356bfd16
 bp::object working_execfile(const char *filename, bp::object globals, bp::object locals) {
-    return bp::import("__builtin__").attr("execfile")(filename, globals, locals);
+    #if PY_MAJOR_VERSION >=3 
+        return bp::exec_file(filename,globals,locals);
+    #else
+        return bp::import("__builtin__").attr("execfile")(filename, globals, locals);
+    #endif
 }
 
 int PythonPlugin::run_string(const char *cmd, bp::object &retval, bool as_file)
@@ -70,7 +78,7 @@ int PythonPlugin::run_string(const char *cmd, bp::object &retval, bool as_file)
 	    retval = bp::exec(cmd, main_namespace, main_namespace);
 	status = PLUGIN_OK;
     }
-    catch (bp::error_already_set) {
+    catch (bp::error_already_set &) {
 	if (PyErr_Occurred()) {
 	    exception_msg = handle_pyerror();
 	} else
@@ -97,7 +105,7 @@ int PythonPlugin::call_method(bp::object method, bp::object &retval)
 	retval = method(); 
 	status = PLUGIN_OK;
     }
-    catch (bp::error_already_set) {
+    catch (bp::error_already_set &) {
 	if (PyErr_Occurred()) {
 	   exception_msg = handle_pyerror();
 	} else
@@ -147,7 +155,7 @@ int PythonPlugin::call(const char *module, const char *callable,
 	    retval = bp::object();
 	status = PLUGIN_OK;
     }
-    catch (bp::error_already_set) {
+    catch (bp::error_already_set &) {
 	if (PyErr_Occurred()) {
 	   exception_msg = handle_pyerror();
 	} else
@@ -187,7 +195,7 @@ bool PythonPlugin::is_callable(const char *module,
 	}
 	result = PyCallable_Check(function.ptr());
     }
-    catch (bp::error_already_set) {
+    catch (bp::error_already_set &) {
 	// KeyError expected if not callable
 	if (!PyErr_ExceptionMatches(PyExc_KeyError)) {
 	    // something else, strange
@@ -270,7 +278,7 @@ int PythonPlugin::initialize()
 						  main_namespace);
 	    status = PLUGIN_OK;
 	}
-	catch (bp::error_already_set) {
+	catch (bp::error_already_set &) {
 	    if (PyErr_Occurred()) {
 		exception_msg = handle_pyerror();
 	    } else
@@ -298,7 +306,14 @@ PythonPlugin::PythonPlugin(struct _inittab *inittab) :
     abs_path(0),
     log_level(0)
 {
+#if PY_MAJOR_VERSION >=3    
+    if (abs_path){
+        wchar_t *program = Py_DecodeLocale(abs_path, NULL);
+        Py_SetProgramName(program);
+    }
+#else
     Py_SetProgramName((char *) abs_path);
+#endif
 
     if ((inittab != NULL) &&
 	PyImport_ExtendInittab(inittab)) {
@@ -373,7 +388,7 @@ int PythonPlugin::configure(const char *iniFilename,
     int lineno;
     while (NULL != (inistring = inifile.Find("PATH_PREPEND", "PYTHON",
 					     n, &lineno))) {
-	sprintf(pycmd, "import sys\nsys.path.insert(0,\"%s\")", inistring);
+	snprintf(pycmd, sizeof(pycmd), "import sys\nsys.path.insert(0,\"%s\")", inistring);
 	logPP(1, "%s:%d: executing '%s'",iniFilename, lineno, pycmd);
 
 	if (PyRun_SimpleString(pycmd)) {
@@ -387,7 +402,7 @@ int PythonPlugin::configure(const char *iniFilename,
     n = 1;
     while (NULL != (inistring = inifile.Find("PATH_APPEND", "PYTHON",
 					     n, &lineno))) {
-	sprintf(pycmd, "import sys\nsys.path.append(\"%s\")", inistring);
+	snprintf(pycmd, sizeof(pycmd), "import sys\nsys.path.append(\"%s\")", inistring);
 	logPP(1, "%s:%d: executing '%s'",iniFilename, lineno, pycmd);
 	if (PyRun_SimpleString(pycmd)) {
 	    logPP(-1, "%s:%d: exception running '%s'",iniFilename, lineno, pycmd);
@@ -415,3 +430,14 @@ PythonPlugin *PythonPlugin::instantiate(struct _inittab *inittab)
     return (python_plugin->usable()) ? python_plugin : NULL;
 }
 
+
+static const char *strstore(const char *s)
+{
+    static std::set<std::string> stringtable;
+    using namespace std;
+
+    if (s == NULL)
+        throw invalid_argument("strstore(): NULL argument");
+    pair< set<string>::iterator, bool > pair = stringtable.insert(s);
+    return pair.first->c_str();
+}

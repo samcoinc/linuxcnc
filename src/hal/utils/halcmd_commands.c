@@ -43,6 +43,7 @@
 #include "../hal_priv.h"	/* private HAL decls */
 #include "halcmd_commands.h"
 #include <rtapi_mutex.h>
+#include <rtapi_string.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -240,6 +241,15 @@ int do_unlinkp_cmd(char *pin)
         halcmd_error("unlink failed\n");
     }
     return retval;
+}
+
+int do_set_debug_cmd(char* level){
+    int new_level = atoi(level);
+    if (new_level < 0 || new_level > 5){
+        halcmd_error("Debug level must be >=0 and <= 5\n");
+        return -EINVAL;
+    }
+    return rtapi_set_msg_level(atoi(level));
 }
 
 int do_source_cmd(char *hal_filename) {
@@ -621,6 +631,8 @@ int do_newsig_cmd(char *name, char *type)
 	retval = hal_signal_new(name, HAL_U32);
     } else if (strcasecmp(type, "s32") == 0) {
 	retval = hal_signal_new(name, HAL_S32);
+    } else if (strcasecmp(type, "port") == 0) {
+	retval = hal_signal_new(name, HAL_PORT);
     } else {
 	halcmd_error("Unknown signal type '%s'\n", type);
 	retval = -EINVAL;
@@ -637,6 +649,7 @@ static int set_common(hal_type_t type, void *d_ptr, char *value) {
     double fval;
     long lval;
     unsigned long ulval;
+    unsigned uval;
     char *cp = value;
 
     switch (type) {
@@ -681,6 +694,20 @@ static int set_common(hal_type_t type, void *d_ptr, char *value) {
 	    *((hal_u32_t *) (d_ptr)) = ulval;
 	}
 	break;
+    case HAL_PORT:
+        uval = strtoul(value, &cp, 0);
+        if ((*cp != '\0') && (!isspace(*cp))) {
+            halcmd_error("value '%s' invalid for PORT\n", value);
+            retval = -EINVAL;
+        } else {
+            if((*((hal_port_t*)d_ptr) != 0) && (hal_port_buffer_size(*((hal_port_t*)d_ptr)) > 0)) {
+                halcmd_error("port is already allocated with %u bytes.\n", hal_port_buffer_size(*((hal_port_t*)d_ptr)));
+                retval = -EINVAL;
+        } else {
+            *((hal_port_t*) (d_ptr)) = hal_port_alloc(uval);
+        }
+    }
+    break;
     default:
 	/* Shouldn't get here, but just in case... */
 	halcmd_error("bad type %d\n", type);
@@ -849,8 +876,8 @@ int do_sets_cmd(char *name, char *value)
 	halcmd_error("signal '%s' not found\n", name);
 	return -EINVAL;
     }
-    /* found it - does it have a writer? */
-    if (sig->writers > 0) {
+    /* found it - it have a writer? if it is a port we can set its buffer size */
+    if ((sig->type != HAL_PORT) && (sig->writers > 0)) {
 	rtapi_mutex_give(&(hal_data->mutex));
 	halcmd_error("signal '%s' already has writer(s)\n", name);
 	return -EINVAL;
@@ -935,6 +962,7 @@ static int get_type(char ***patterns) {
     if(strcmp(typestr, "u32") == 0) return HAL_U32;
     if(strcmp(typestr, "signed") == 0) return HAL_S32;
     if(strcmp(typestr, "unsigned") == 0) return HAL_U32;
+    if(strcmp(typestr, "port") == 0) return HAL_PORT;
     return -1;
 }
 
@@ -1914,7 +1942,12 @@ static void print_thread_info(char **patterns)
             hal_sig_t *sig;
             void *dptr;
   
-            snprintf(name, sizeof(name), "%s.time",tptr->name);
+            size_t ret = snprintf(name, sizeof(name), "%s.time",tptr->name);
+            if (ret >=  sizeof(name)){
+                rtapi_print_msg(RTAPI_MSG_ERR,
+                        "unexpected: pin name too long for buffer %s",tptr->name);
+            } else {
+
             pin = halpr_find_pin_by_name(name);
             if (pin) {
                 if (pin->signal != 0) {
@@ -1935,6 +1968,7 @@ static void print_thread_info(char **patterns)
             } else {
                 rtapi_print_msg(RTAPI_MSG_ERR,
                      "unexpected: cannot find time pin for %s thread",tptr->name);
+            }
             }
 
 
@@ -2179,6 +2213,9 @@ static const char *data_type(int type)
     case HAL_U32:
 	type_str = "u32  ";
 	break;
+    case HAL_PORT:
+	type_str = "port ";
+	break;
     default:
 	/* Shouldn't get here, but just in case... */
 	type_str = "undef";
@@ -2202,6 +2239,9 @@ static const char *data_type2(int type)
 	break;
     case HAL_U32:
 	type_str = "u32";
+	break;
+    case HAL_PORT:
+	type_str = "port";
 	break;
     default:
 	/* Shouldn't get here, but just in case... */
@@ -2321,6 +2361,10 @@ static char *data_value(int type, void *valptr)
 	snprintf(buf, 14, "  0x%08lX", (unsigned long)*((hal_u32_t *) valptr));
 	value_str = buf;
 	break;
+    case HAL_PORT:
+	snprintf(buf, 14, "  %10u", hal_port_buffer_size(*((hal_port_t*) valptr)));
+	value_str = buf;
+	break;
     default:
 	/* Shouldn't get here, but just in case... */
 	value_str = "   undef    ";
@@ -2354,6 +2398,11 @@ static char *data_value2(int type, void *valptr)
 	snprintf(buf, 14, "%ld", (unsigned long)*((hal_u32_t *) valptr));
 	value_str = buf;
 	break;
+    case HAL_PORT:
+	snprintf(buf, 14, "%u", hal_port_buffer_size(*((hal_port_t*) valptr)));
+	value_str = buf;
+	break;
+
     default:
 	/* Shouldn't get here, but just in case... */
 	value_str = "unknown_type";
@@ -2802,7 +2851,7 @@ int do_help_cmd(char *command)
     } else if (strcmp(command, "newsig") == 0) {
 	printf("newsig signame type\n");
 	printf("  Creates a new signal called 'signame'.  Type\n");
-	printf("  is 'bit', 'float', 'u32', or 's32'.\n");
+	printf("  is 'bit', 'float', 'port', 'u32', or 's32'.\n");
     } else if (strcmp(command, "delsig") == 0) {
 	printf("delsig signame\n");
 	printf("  Deletes signal 'signame'.  If 'signame is 'all',\n");
@@ -2825,7 +2874,9 @@ int do_help_cmd(char *command)
 #endif
     } else if (strcmp(command, "sets") == 0) {
 	printf("sets signame value\n");
-	printf("  Sets signal 'signame' to 'value' (if signal has no writers).\n");
+	printf("  Sets a non-port signal 'signame' to 'value' (if signal has no writers).\n");
+    printf("  If 'signame' is a port signal (that has not previously been allocated),\n");
+    printf("  then 'value' is the new maximum size in bytes of that port.\n");
     } else if (strcmp(command, "getp") == 0) {
 	printf("getp paramname\n");
 	printf("getp pinname\n");
@@ -2837,6 +2888,7 @@ int do_help_cmd(char *command)
     } else if (strcmp(command, "gets") == 0) {
 	printf("gets signame\n");
 	printf("  Gets the value of signal 'signame'.\n");
+    printf("  If signal 'signame' is a port, returns the buffer size of that port.\n");
     } else if (strcmp(command, "stype") == 0) {
 	printf("stype signame\n");
 	printf("  Gets the type of signal 'signame'\n");
@@ -2877,6 +2929,16 @@ int do_help_cmd(char *command)
 	printf("  'type' is 'lock', 'mem', or 'all'. \n");
 	printf("  If 'type' is omitted, it assumes\n");
 	printf("  'all'.\n");
+    } else if (strcmp(command, "debug")==0){
+    printf("debug [level]\n");
+    printf("   set the messaging level for the realtime API (calls rtapi_set_msg_level)\n");
+    printf("   levels are \n");
+    printf("   0 = None\n");
+	printf("   1 = Errors only (default)\n");
+	printf("   2 = Warnings and above\n");
+	printf("   3 = Info and above\n");
+	printf("   4 = Debug and above\n");
+	printf("   5 = All messages\n");
     } else if (strcmp(command, "save") == 0) {
 	printf("save [type] [filename]\n");
 	printf("  Prints HAL state to 'filename' (or stdout), as a series\n");
@@ -2955,6 +3017,7 @@ static void print_help_commands(void)
     printf("  list                Display names of HAL objects\n");
     printf("  source              Execute commands from another .hal file\n");
     printf("  status              Display status information\n");
+    printf("  debug               Set the rtapi message level\n");
     printf("  save                Print config as commands\n");
     printf("  start, stop         Start/stop realtime threads\n");
     printf("  alias, unalias      Add or remove pin or parameter name aliases\n");
